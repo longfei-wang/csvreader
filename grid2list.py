@@ -1,8 +1,21 @@
 #!/usr/bin/python
-
-filename = '/home/longfei/Downloads/test.csv'
+#
+#
+#A program to process the report file(grid view) from Envision reader/ICCB
+#
+#Longfei Wang
+#
 
 import csv
+import sys
+
+if len(sys.argv) < 2:
+	print "Usage: python grid2list.py INPUT_FILE [OUTPUT_FILE]"
+	sys.exit()
+
+else:
+	inputfile = sys.argv[1]
+	outputfile = sys.argv[2] if len(sys.argv)>2 else inputfile.split('.')[0]+'_listout.csv'
 
 
 class table():
@@ -25,7 +38,7 @@ class table():
 			self.c.append(r[1:])
 			r = pointer.next()
 
-		#maintain a list of unique cols rows and titles 
+		#maintain a list of unique plates cols rows and titles 
 		self.allrows += [i for i in self.rows if i not in self.allrows]
 		self.allcols += [i for i in self.columns if i not in self.allcols]
 		if title not in self.titles:
@@ -57,39 +70,62 @@ plate_id = 0
 title = ''
 tabledict = dict()
 
+print "Processing grid csv file....."
 
-csvfile =  open(filename,'rb')
-csv = csv.reader(csvfile)
+with open(inputfile,'rb') as csvfile:
+	reader = csv.reader(csvfile)
 
+	for rows in reader:#read through the grid csv file and find plates/talbes
+		if rows[0] == 'Plate':
+			rows = reader.next()
 
-for rows in csv:#read through the grid csv file and find plates/talbes
-	if rows[0] == 'Plate':
-		rows = csv.next()
-
-		try:
-			plate_id = int(rows[0])
-			if plate_id not in tabledict.keys():
-				tabledict[plate_id] = dict()
-		except:
-			pass
-
-	elif ',1,2,3,4,5,6,7,8,9' in ','.join(rows):#the columns header is the idenifier for a table, this might need to be improved
-		if title:
-			tabledict[plate_id][title] = table(csv,plate_id,title,rows[1:])
-
-	else:
-		title = ''.join(rows)
-
-
-for plate in table.plates:
-	for well in table.wells():
-
-		print plate,well,
-
-		for title in table.titles:
 			try:
-				print tabledict[plate][title][well],
+				plate_id = rows[0]
+				if plate_id not in tabledict.keys():
+					tabledict[plate_id] = dict()
 			except:
-				print 'N/A',
+				pass
 
-		print
+		elif ',1,2,3,4,5,6,7,8,9' in ','.join(rows):#the columns header is the idenifier for a table, this might need to be improved
+			if title:
+				print plate_id,title,reader.line_num
+				tabledict[plate_id][title] = table(reader,plate_id,title,rows[1:])
+
+		else:
+			title = ''.join(rows)
+
+print
+print
+print "Writing list csv file....."
+
+with open(outputfile,'wb') as csvfile:
+	writer=csv.writer(csvfile,delimiter=',')
+
+	writer.writerow(['plate','well']+table.titles)#header
+	
+	for plate in table.plates:
+		for well in table.wells():
+
+			print plate,well,
+
+			line = list()
+
+			line+=[plate,well]
+
+			for title in table.titles:
+				try:
+					line.append(tabledict[plate][title][well])
+				except:
+					line.append('None')
+
+			writer.writerow(line)
+
+
+print
+print
+print "============================================Summary==========================================="
+print "Plates:",",".join(table.plates)
+print "cols:",",".join(table.allcols)
+print "rows:",",".join(table.allrows)
+print "Num of Wells:",len(table.allcols)*len(table.allrows)
+print "Columns:",",".join(table.titles)
